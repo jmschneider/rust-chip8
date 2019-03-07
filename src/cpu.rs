@@ -158,7 +158,7 @@ impl Cpu {
       // Bnnn - JP V0, addr
       (0xB, _, _, _) => self.pc = nnn + self.v[0] as u16,
       // Cxkk - RND Vx, byte
-      (0xC, _, _, _) => self.v[x] = kk & random_byte(),
+      (0xC, _, _, _) => self.v[x] = kk & rand::thread_rng().gen::<u8>(),
       // Dxyn - DRW Vx, Vy, nibble
       // TODO
       (0xD, _, _, _) => {},
@@ -205,9 +205,4 @@ fn read_word(memory: [u8; 4096], index: u16) -> u16 {
   // this is combining to 2 u8 values into 1 u16 value. Left shifted first by 8 OR unshifted second byte
   // for 00110011 and 11011101, it becomes 0011001100000000 OR 11011101 which equals 0011001111011101
   (memory[index as usize] as u16) << 8 | (memory[(index + 1) as usize] as u16)
-}
-
-fn random_byte() -> u8 {
-  let mut rng = rand::thread_rng();
-  rng.gen()
 }
