@@ -1,5 +1,6 @@
 use crate::display::{Display, FONT_SET};
 use crate::keypad::Keypad;
+use rand::Rng;
 
 pub struct Cpu {
   // index register
@@ -36,7 +37,6 @@ impl Cpu {
       sp: 0,
       dt: 0,
       st: 0
-      // rand: ComplementaryMultiplyWithCarryGen::new(1)
     }
   }
   
@@ -82,10 +82,10 @@ impl Cpu {
     let n = (opcode & 0x000F) as u8;
 
     // break up into nibbles
-    let op_1 = (opcode & 0xF000) >> 12;
-    let op_2 = (opcode & 0x0F00) >> 8;
-    let op_3 = (opcode & 0x00F0) >> 4;
-    let op_4 = opcode & 0x000F;
+    let op_1 = ((opcode & 0xF000) >> 12) as u8;
+    let op_2 = ((opcode & 0x0F00) >> 8) as u8;
+    let op_3 = ((opcode & 0x00F0) >> 4) as u8;
+    let op_4 = (opcode & 0x000F) as u8;
 
     // increment the program counter
     self.pc += 2;
@@ -151,6 +151,51 @@ impl Cpu {
         self.v[0xF] = vx & 0x80;
         self.v[x] <<= 1;
       },
+      // 9xy0 - SNE Vx, Vy
+      (0x9, _, _, 0) => self.pc += if vx != vy { 2 } else { 0 },
+      // Annn - LD I, addr
+      (0xA, _, _, _) => self.i = nnn,
+      // Bnnn - JP V0, addr
+      (0xB, _, _, _) => self.pc = nnn + self.v[0] as u16,
+      // Cxkk - RND Vx, byte
+      (0xC, _, _, _) => self.v[x] = kk & random_byte(),
+      // Dxyn - DRW Vx, Vy, nibble
+      // TODO
+      (0xD, _, _, _) => {},
+      // Ex9E - SKP Vx
+      (0xE, _, 0x9, 0xE) => self.pc += if self.keypad.is_key_down(vx) { 2 }  else { 0 },
+      // ExA1 - SKNP Vx
+      (0xE, _, 0xA, 0x1) => self.pc += if self.keypad.is_key_down(vx) { 0 }  else { 2 },
+      // Fx07 - LD Vx, DT
+      (0xF, _, 0, 0x7) => self.v[x] = self.dt,
+      // Fx0A - LD Vx, K
+      (0xF, _, 0, 0xA) => {
+        self.pc -= 2; // Keep repeating current opcode
+        for (i, key) in self.keypad.keys.iter().enumerate() {
+          if *key == true {
+            self.v[x] = i as u8;
+            self.pc += 2;
+          }
+        }
+      },
+      // Fx15 - LD DT, Vx
+      (0xF, _, 0x1, 0x5) => self.dt = vx,
+      // Fx18 - LD ST, Vx
+      (0xF, _, 0x1, 0x8) => self.st = vx,
+      // Fx1E - ADD I, Vx
+      (0xF, _, 0x1, 0xE) => self.i += vx as u16,
+      // Fx29 - LD F, Vx
+      (0xF, _, 0x2, 0x9) => self.i = vx as u16 * 5,
+      // Fx33 - LD B, Vx
+      (0xF, _, 0x3, 0x3) => {
+        self.memory[self.i as usize] = vx / 100;
+        self.memory[self.i as usize + 1] = (vx / 10) % 10;
+        self.memory[self.i as usize + 2] = (vx % 100) % 10;
+      },
+      // Fx55 - LD [I], Vx
+      (0xF, _, 0x5, 0x5) => self.memory[(self.i as usize)..(self.i + x as u16 + 1) as usize].copy_from_slice(&self.v[0..(x as usize + 1)]),
+      // Fx65 - LD Vx, [I]
+      (0xF, _, 0x6, 0x5) => self.v[0..(x as usize + 1)].copy_from_slice(&self.memory[(self.i as usize)..(self.i + x as u16 + 1) as usize]),
       (_, _, _, _) => ()
     }
   }
@@ -160,4 +205,9 @@ fn read_word(memory: [u8; 4096], index: u16) -> u16 {
   // this is combining to 2 u8 values into 1 u16 value. Left shifted first by 8 OR unshifted second byte
   // for 00110011 and 11011101, it becomes 0011001100000000 OR 11011101 which equals 0011001111011101
   (memory[index as usize] as u16) << 8 | (memory[(index + 1) as usize] as u16)
+}
+
+fn random_byte() -> u8 {
+  let mut rng = rand::thread_rng();
+  rng.gen()
 }
