@@ -160,8 +160,10 @@ impl Cpu {
       // Cxkk - RND Vx, byte
       (0xC, _, _, _) => self.v[x] = kk & rand::thread_rng().gen::<u8>(),
       // Dxyn - DRW Vx, Vy, nibble
-      // TODO
-      (0xD, _, _, _) => {},
+      (0xD, _, _, _) => {
+        let collision = self.display.draw(vx as usize, vy as usize, &self.memory[self.i as usize..(self.i + n as u16) as usize]);
+        self.v[0xF] = if collision { 1 } else { 0 };
+      },
       // Ex9E - SKP Vx
       (0xE, _, 0x9, 0xE) => self.pc += if self.keypad.is_key_down(vx) { 2 }  else { 0 },
       // ExA1 - SKNP Vx
@@ -205,4 +207,245 @@ fn read_word(memory: [u8; 4096], index: u16) -> u16 {
   // this is combining to 2 u8 values into 1 u16 value. Left shifted first by 8 OR unshifted second byte
   // for 00110011 and 11011101, it becomes 0011001100000000 OR 11011101 which equals 0011001111011101
   (memory[index as usize] as u16) << 8 | (memory[(index + 1) as usize] as u16)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cpu;
+
+    #[test]
+    fn opcode_jp() {
+        let mut cpu = Cpu::new();
+        cpu.process_opcode(0x1A2A);
+        assert_eq!(cpu.pc, 0x0A2A, "the program counter is updated");
+    }
+
+    #[test]
+    fn opcode_call() {
+        let mut cpu = Cpu::new();
+        let addr = 0x23;
+        cpu.pc = addr;
+
+        cpu.process_opcode(0x2ABC);
+
+        assert_eq!(cpu.pc, 0x0ABC, "the program counter is updated to the new address");
+        assert_eq!(cpu.sp, 1, "the stack pointer is incremented");
+        assert_eq!(cpu.stack[0], addr + 2, "the stack stores the previous address");
+    }
+
+    #[test]
+    fn opcode_se_vx_byte() {
+        let mut cpu = Cpu::new();
+        cpu.v[1] = 0xFE;
+        
+        // vx == kk
+        cpu.process_opcode(0x31FE);
+        assert_eq!(cpu.pc, 0x204, "the stack pointer skips");
+
+        // vx != kk
+        cpu.process_opcode(0x31FA);
+        assert_eq!(cpu.pc, 0x206, "the stack pointer is incremented");
+    }
+
+    #[test]
+    fn opcode_sne_vx_byte() {
+        let mut cpu = Cpu::new();
+        cpu.v[1] = 0xFE;
+        
+        // vx == kk
+        cpu.process_opcode(0x41FE);
+        assert_eq!(cpu.pc, 0x202, "the stack pointer is incremented");
+
+        // vx != kk
+        cpu.process_opcode(0x41FA);
+        assert_eq!(cpu.pc, 0x206, "the stack pointer skips");
+    }
+
+    #[test]
+    fn opcode_se_vx_vy() {
+        let mut cpu = Cpu::new();
+        cpu.v[1] = 1;
+        cpu.v[2] = 3;
+        cpu.v[3] = 3;
+        
+        // vx == vy
+        cpu.process_opcode(0x5230);
+        assert_eq!(cpu.pc, 0x204, "the stack pointer skips");
+
+        // vx != vy
+        cpu.process_opcode(0x5130);
+        assert_eq!(cpu.pc, 0x206, "the stack pointer is incremented");
+    }
+
+    #[test]
+    fn opcode_sne_vx_vy() {
+        let mut cpu = Cpu::new();
+        cpu.v[1] = 1;
+        cpu.v[2] = 3;
+        cpu.v[3] = 3;
+        
+        // vx == vy
+        cpu.process_opcode(0x9230);
+        assert_eq!(cpu.pc, 0x202, "the stack pointer is incremented");
+
+        // vx != vy
+        cpu.process_opcode(0x9130);
+        assert_eq!(cpu.pc, 0x206, "the stack pointer skips");
+    }
+
+    #[test]
+    fn opcode_add_vx_kkk() {
+        let mut cpu = Cpu::new();
+        cpu.v[1] = 3;
+        
+        cpu.process_opcode(0x7101);
+        assert_eq!(cpu.v[1], 4, "Vx was incremented by one");
+    }
+
+    #[test]
+    fn opcode_ld_vx_vy() {
+        let mut cpu = Cpu::new();
+        cpu.v[1] = 3;
+        cpu.v[0] = 0;
+        
+        cpu.process_opcode(0x8010);
+        assert_eq!(cpu.v[0], 3, "Vx was loaded with vy");
+    }
+
+    #[test]
+    fn opcode_or_vx_vy() {
+        let mut cpu = Cpu::new();
+        cpu.v[2] = 0b01101100;
+        cpu.v[3] = 0b11001110;
+        
+        cpu.process_opcode(0x8231);
+        assert_eq!(cpu.v[2], 0b11101110, "Vx was loaded with vx OR vy");
+    }
+
+    #[test]
+    fn opcode_and_vx_vy() {
+        let mut cpu = Cpu::new();
+        cpu.v[2] = 0b01101100;
+        cpu.v[3] = 0b11001110;
+        
+        cpu.process_opcode(0x8232);
+        assert_eq!(cpu.v[2], 0b01001100, "Vx was loaded with vx AND vy");
+    }
+
+    #[test]
+    fn opcode_xor_vx_vy() {
+        let mut cpu = Cpu::new();
+        cpu.v[2] = 0b01101100;
+        cpu.v[3] = 0b11001110;
+        
+        cpu.process_opcode(0x8233);
+        assert_eq!(cpu.v[2], 0b10100010, "Vx was loaded with vx XOR vy");
+    }
+
+    #[test]
+    fn opcode_add_vx_vy() {
+        let mut cpu = Cpu::new();
+        cpu.v[1] = 10;
+        cpu.v[2] = 100;
+        cpu.v[3] = 250;
+        
+        cpu.process_opcode(0x8124);
+        assert_eq!(cpu.v[1], 110, "Vx was loaded with vx + vy");
+        assert_eq!(cpu.v[0xF], 0, "no overflow occured");
+
+        cpu.process_opcode(0x8134);
+        assert_eq!(cpu.v[1], 0x68, "Vx was loaded with vx + vy");
+        assert_eq!(cpu.v[0xF], 1, "overflow occured");
+    }
+
+    #[test]
+    fn opcode_ld_i_vx() {
+        let mut cpu = Cpu::new();
+        cpu.v[0] = 5;
+        cpu.v[1] = 4;
+        cpu.v[2] = 3;
+        cpu.v[3] = 2;
+        cpu.i = 0x300;
+        
+        // load v0 - v2 into memory at i
+        cpu.process_opcode(0xF255);
+        assert_eq!(cpu.memory[cpu.i as usize], 5, "V0 was loaded into memory at i");
+        assert_eq!(cpu.memory[cpu.i as usize + 1], 4, "V1 was loaded into memory at i + 1");
+        assert_eq!(cpu.memory[cpu.i as usize + 2], 3, "V2 was loaded into memory at i + 2");
+        assert_eq!(cpu.memory[cpu.i as usize + 3], 0, "i + 3 was not loaded");
+    }
+    
+    #[test]
+    fn opcode_ld_b_vx() {
+        let mut cpu = Cpu::new();
+        cpu.i = 0x300;
+        cpu.v[2] = 234;
+        
+        // load v0 - v2 from memory at i
+        cpu.process_opcode(0xF233);
+        assert_eq!(cpu.memory[cpu.i as usize], 2, "hundreds");
+        assert_eq!(cpu.memory[cpu.i as usize + 1], 3, "tens");
+        assert_eq!(cpu.memory[cpu.i as usize + 2], 4, "digits");
+    }
+    
+    #[test]
+    fn opcode_ld_vx_i() {
+        let mut cpu = Cpu::new();
+        cpu.i = 0x300;
+        cpu.memory[cpu.i as usize] = 5;
+        cpu.memory[cpu.i as usize + 1] = 4;
+        cpu.memory[cpu.i as usize + 2] = 3;
+        cpu.memory[cpu.i as usize + 3] = 2;
+        
+        
+        // load v0 - v2 from memory at i
+        cpu.process_opcode(0xF265);
+        assert_eq!(cpu.v[0], 5, "V0 was loaded from memory at i");
+        assert_eq!(cpu.v[1], 4, "V1 was loaded from memory at i + 1");
+        assert_eq!(cpu.v[2], 3, "V2 was loaded from memory at i + 2");
+        assert_eq!(cpu.v[3], 0, "i + 3 was not loaded");
+    }
+
+    #[test]
+    fn opcode_ret() {
+        let mut cpu = Cpu::new();
+        let addr = 0x23;
+        cpu.pc = addr;
+
+        // jump to 0x0ABC
+        cpu.process_opcode(0x2ABC); 
+        // return
+        cpu.process_opcode(0x00EE);
+
+        assert_eq!(cpu.pc, 0x25, "the program counter is updated to the new address");
+        assert_eq!(cpu.sp, 0, "the stack pointer is decremented");
+    }
+    
+
+    #[test]
+    fn opcode_ld_i_addr() {
+        let mut cpu = Cpu::new();
+
+        cpu.process_opcode(0x61AA);
+        assert_eq!(cpu.v[1], 0xAA, "V1 is set");
+        assert_eq!(cpu.pc, 0x202, "the program counter is advanced two bytes");
+
+        cpu.process_opcode(0x621A);
+        assert_eq!(cpu.v[2], 0x1A, "V2 is set");
+        assert_eq!(cpu.pc, 0x204, "the program counter is advanced two bytes");
+
+        cpu.process_opcode(0x6A15);
+        assert_eq!(cpu.v[10], 0x15, "V10 is set");
+        assert_eq!(cpu.pc, 0x206, "the program counter is advanced two bytes");
+    }
+
+    #[test]
+    fn opcode_axxx() {
+        let mut cpu = Cpu::new();
+        cpu.process_opcode(0xAFAF);
+
+        assert_eq!(cpu.i, 0x0FAF, "the 'i' register is updated");
+        assert_eq!(cpu.pc, 0x202, "the program counter is advanced two bytes");
+    }
+
 }

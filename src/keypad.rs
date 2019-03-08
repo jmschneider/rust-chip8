@@ -9,7 +9,16 @@ impl Keypad {
     }
   }
 
+  pub fn key_down(&mut self, index: u8) {
+    self.keys[index as usize] = true;
+  }
+
+  pub fn key_up(&mut self, index: u8) {
+    self.keys[index as usize] = false;
+  }
+
+
   pub fn is_key_down(&self, index: u8) -> bool {
-    false
+    self.keys[index as usize]
   }
 }
