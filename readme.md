@@ -1,0 +1,1 @@
+Based off [this article](https://blog.scottlogic.com/2017/12/13/chip8-emulator-webassembly-rust.html) and [this repo](https://github.com/ColinEberhardt/wasm-rust-chip8).
