@@ -56,9 +56,10 @@ impl Cpu {
     }
   }
 
-  pub fn execute_cycle(&mut self) {
+  pub fn execute_cycle(&mut self) -> u16 {
     let opcode: u16 = read_word(self.memory, self.pc);
     self.process_opcode(opcode);
+    opcode
   }
 
   pub fn load(&mut self, data: &[u8]) {
