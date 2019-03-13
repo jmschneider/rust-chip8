@@ -62,6 +62,7 @@ impl Cpu {
   }
 
   pub fn load(&mut self, data: &[u8]) {
+    self.reset();
     for (i, &byte) in data.iter().enumerate() {
       let addr = 0x200 + i;
       if addr < 4096 {
