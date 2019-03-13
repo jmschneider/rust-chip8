@@ -61,6 +61,17 @@ impl Cpu {
     self.process_opcode(opcode);
   }
 
+  pub fn load(&mut self, data: &[u8]) {
+    for (i, &byte) in data.iter().enumerate() {
+      let addr = 0x200 + i;
+      if addr < 4096 {
+        self.memory[0x200 + i] = byte;
+      } else {
+        break;
+      }
+    }
+  }
+
   pub fn decrement_timers(&mut self) {
     if self.dt > 0 {
       self.dt -= 1;
