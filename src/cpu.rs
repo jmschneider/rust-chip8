@@ -160,7 +160,7 @@ impl Cpu {
       },
       // 8xyE - SHL Vx {, Vy}
       (0x8, _, _, 0xE) => {
-        self.v[0xF] = vx & 0b1000000 >> 7;
+        self.v[0xF] = vx & 0x80;
         self.v[x] <<= 1;
       },
       // 9xy0 - SNE Vx, Vy
