@@ -24,20 +24,26 @@ pub struct Cpu {
   pub st: u8
 }
 
-impl Cpu {
-  pub fn new() -> Cpu {
-    Cpu {
-      i: 0,
-      pc: 0x200,
-      memory: [0; 4096],
-      v: [0; 16],
-      display: Display::new(),
-      keypad: Keypad::new(),
-      stack: [0; 16],
-      sp: 0,
-      dt: 0,
-      st: 0
+impl Default for Cpu {
+    fn default() -> Self {
+      Cpu {
+        i: 0,
+        pc: 0x200,
+        memory: [0; 4096],
+        v: [0; 16],
+        display: Display::new(),
+        keypad: Keypad::new(),
+        stack: [0; 16],
+        sp: 0,
+        dt: 0,
+        st: 0
+      }
     }
+}
+
+impl Cpu {
+  pub fn new() -> Self {
+    Cpu::default()
   }
   
   pub fn reset(&mut self) {

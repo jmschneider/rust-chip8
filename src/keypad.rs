@@ -2,6 +2,12 @@ pub struct Keypad {
   pub keys: [bool; 16],
 }
 
+impl Default for Keypad {
+  fn default() -> Self {
+      Self::new()
+  }
+}
+
 impl Keypad {
   pub fn new() -> Keypad {
     Keypad {
