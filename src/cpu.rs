@@ -51,9 +51,7 @@ impl Cpu {
     self.st = 0;
     // self.rand = ComplementaryMultiplyWithCarryGen::new(1);
     self.display.cls();
-    for i in 0..80 {
-      self.memory[i] = FONT_SET[i];
-    }
+    self.memory[..80].clone_from_slice(&FONT_SET[..80]);
   }
 
   pub fn execute_cycle(&mut self) {
@@ -139,7 +137,7 @@ impl Cpu {
       (0x8, _, _, 0x3) => self.v[x] = vx ^ vy,
       // 8xy4 - ADD Vx, Vy
       (0x8, _, _, 0x4) => {
-        let res = vx as u16  + vy as u16;
+        let res = u16::from(vx)  + u16::from(vy);
         self.v[0xF] = if res > 0xFF { 1 } else { 0 };
         self.v[x] = (res & 0xFF) as u8;
       },
@@ -168,12 +166,12 @@ impl Cpu {
       // Annn - LD I, addr
       (0xA, _, _, _) => self.i = nnn,
       // Bnnn - JP V0, addr
-      (0xB, _, _, _) => self.pc = nnn + self.v[0] as u16,
+      (0xB, _, _, _) => self.pc = nnn + u16::from(self.v[0]),
       // Cxkk - RND Vx, byte
       (0xC, _, _, _) => self.v[x] = kk & rand::thread_rng().gen::<u8>(),
       // Dxyn - DRW Vx, Vy, nibble
       (0xD, _, _, _) => {
-        let collision = self.display.draw(vx as usize, vy as usize, &self.memory[self.i as usize..(self.i + n as u16) as usize]);
+        let collision = self.display.draw(vx as usize, vy as usize, &self.memory[self.i as usize..(self.i + u16::from(n)) as usize]);
         self.v[0xF] = if collision { 1 } else { 0 };
       },
       // Ex9E - SKP Vx
@@ -186,7 +184,7 @@ impl Cpu {
       (0xF, _, 0, 0xA) => {
         self.pc -= 2; // Keep repeating current opcode
         for (i, key) in self.keypad.keys.iter().enumerate() {
-          if *key == true {
+          if *key {
             self.v[x] = i as u8;
             self.pc += 2;
           }
@@ -197,9 +195,9 @@ impl Cpu {
       // Fx18 - LD ST, Vx
       (0xF, _, 0x1, 0x8) => self.st = vx,
       // Fx1E - ADD I, Vx
-      (0xF, _, 0x1, 0xE) => self.i += vx as u16,
+      (0xF, _, 0x1, 0xE) => self.i += u16::from(vx),
       // Fx29 - LD F, Vx
-      (0xF, _, 0x2, 0x9) => self.i = vx as u16 * 5,
+      (0xF, _, 0x2, 0x9) => self.i = u16::from(vx) * 5,
       // Fx33 - LD B, Vx
       (0xF, _, 0x3, 0x3) => {
         self.memory[self.i as usize] = vx / 100;
@@ -207,9 +205,9 @@ impl Cpu {
         self.memory[self.i as usize + 2] = (vx % 100) % 10;
       },
       // Fx55 - LD [I], Vx
-      (0xF, _, 0x5, 0x5) => self.memory[(self.i as usize)..(self.i + x as u16 + 1) as usize].copy_from_slice(&self.v[0..(x as usize + 1)]),
+      (0xF, _, 0x5, 0x5) => self.memory[(self.i as usize)..(self.i + x as u16 + 1) as usize].copy_from_slice(&self.v[0..=x]),
       // Fx65 - LD Vx, [I]
-      (0xF, _, 0x6, 0x5) => self.v[0..(x as usize + 1)].copy_from_slice(&self.memory[(self.i as usize)..(self.i + x as u16 + 1) as usize]),
+      (0xF, _, 0x6, 0x5) => self.v[0..=x].copy_from_slice(&self.memory[(self.i as usize)..(self.i + x as u16 + 1) as usize]),
       (_, _, _, _) => ()
     }
   }
@@ -218,7 +216,7 @@ impl Cpu {
 fn read_word(memory: [u8; 4096], index: u16) -> u16 {
   // this is combining to 2 u8 values into 1 u16 value. Left shifted first by 8 OR unshifted second byte
   // for 00110011 and 11011101, it becomes 0011001100000000 OR 11011101 which equals 0011001111011101
-  (memory[index as usize] as u16) << 8 | (memory[(index + 1) as usize] as u16)
+  u16::from(memory[index as usize]) << 8 | u16::from(memory[(index + 1) as usize])
 }
 
 #[cfg(test)]

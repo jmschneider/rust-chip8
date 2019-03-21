@@ -16,8 +16,7 @@ impl Display {
     let rows = sprite.len();
     let mut collision = false;
     
-    for j in 0..rows {
-      let row = sprite[j];
+    for (j, row) in sprite.iter().enumerate().take(rows) {
       for i in 0..8 {
         let new_value = row >> (7 - i) & 0x01;
         if new_value == 1 {
