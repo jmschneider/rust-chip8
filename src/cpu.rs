@@ -1,6 +1,7 @@
 use crate::display::{Display, FONT_SET};
 use crate::keypad::Keypad;
 use rand::Rng;
+use rand::rngs::OsRng;
 
 pub struct Cpu {
   // index register
@@ -21,7 +22,9 @@ pub struct Cpu {
   // delay timer
   pub dt: u8,
   // sound timer
-  pub st: u8
+  pub st: u8,
+  // random number generator
+  pub rand: OsRng
 }
 
 impl Default for Cpu {
@@ -36,7 +39,8 @@ impl Default for Cpu {
         stack: [0; 16],
         sp: 0,
         dt: 0,
-        st: 0
+        st: 0,
+        rand: OsRng::new().unwrap()
       }
     }
 }
@@ -55,7 +59,6 @@ impl Cpu {
     self.sp = 0;
     self.dt = 0;
     self.st = 0;
-    // self.rand = ComplementaryMultiplyWithCarryGen::new(1);
     self.display.cls();
     self.memory[..80].clone_from_slice(&FONT_SET[..80]);
   }
@@ -174,7 +177,7 @@ impl Cpu {
       // Bnnn - JP V0, addr
       (0xB, _, _, _) => self.pc = nnn + u16::from(self.v[0]),
       // Cxkk - RND Vx, byte
-      (0xC, _, _, _) => self.v[x] = kk & rand::thread_rng().gen::<u8>(),
+      (0xC, _, _, _) => self.v[x] = kk & self.rand.gen::<u8>(),
       // Dxyn - DRW Vx, Vy, nibble
       (0xD, _, _, _) => {
         let collision = self.display.draw(vx as usize, vy as usize, &self.memory[self.i as usize..(self.i + u16::from(n)) as usize]);
